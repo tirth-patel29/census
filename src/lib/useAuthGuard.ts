@@ -20,3 +20,4 @@ export function useAuthGuard() {
 
   return { user, loading };
 }
+
