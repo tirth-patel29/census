@@ -2,21 +2,19 @@
 
 import { useState } from 'react';
 import { exportToCSV, exportToExcel, exportCompletionReport } from '@/lib/export';
-import { House, Question } from '@/lib/types';
+import { House } from '@/lib/types';
 
 interface ExportButtonsProps {
   houses: House[];
-  questions: Question[];
-  answers: Record<string, Record<string, string>>;
 }
 
-export default function ExportButtons({ houses, questions, answers }: ExportButtonsProps) {
+export default function ExportButtons({ houses }: ExportButtonsProps) {
   const [exporting, setExporting] = useState<string | null>(null);
 
   const handleCSV = async () => {
     setExporting('csv');
     try {
-      exportToCSV(houses, questions, answers);
+      exportToCSV(houses);
     } finally {
       setTimeout(() => setExporting(null), 1000);
     }
@@ -25,7 +23,7 @@ export default function ExportButtons({ houses, questions, answers }: ExportButt
   const handleExcel = async () => {
     setExporting('excel');
     try {
-      await exportToExcel(houses, questions, answers);
+      await exportToExcel(houses);
     } finally {
       setTimeout(() => setExporting(null), 1000);
     }
@@ -61,8 +59,8 @@ export default function ExportButtons({ houses, questions, answers }: ExportButt
     },
     {
       id: 'export-report-btn',
-      label: 'પૂર્ણતા અહેવાલ',
-      sublabel: 'Completion Report',
+      label: 'સારાંશ અહેવાલ',
+      sublabel: 'Summary Report',
       icon: '📋',
       key: 'report',
       onClick: handleCompletionReport,

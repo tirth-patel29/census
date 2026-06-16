@@ -1,4 +1,4 @@
-import { House, Question } from './types';
+import { House } from './types';
 
 // -------------------------------------------------------
 // CSV Export
@@ -11,34 +11,26 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
-export function exportToCSV(
-  houses: House[],
-  questions: Question[],
-  answers: Record<string, Record<string, string>>
-): void {
-  const sortedQuestions = [...questions].sort((a, b) => a.question_no - b.question_no);
-
+export function exportToCSV(houses: House[]): void {
   const headers = [
-    'મકાન નંબર',
-    'માલિકનું નામ',
-    'વિસ્તાર',
-    'સ્થિતિ',
-    ...sortedQuestions.map((q) => `Q${q.question_no}: ${q.question_text_gujarati}`),
+    'જનગણના નંબર',
+    'વડા નું નામ',
+    'ટોટલ રૂમ',
+    'પરિણિત દંપતિ ની સંખ્યા',
+    'કાર / જીપ',
+    'ટીવી',
+    'તારીખ',
   ];
 
   const rows = houses.map((house) => {
-    const houseAnswers = answers[house.id] || {};
-    const statusMap: Record<string, string> = {
-      pending: 'બાકી',
-      draft: 'ડ્રાફ્ટ',
-      completed: 'પૂર્ણ',
-    };
     return [
-      String(house.house_no),
-      house.owner_name,
-      house.area,
-      statusMap[house.status] || house.status,
-      ...sortedQuestions.map((q) => houseAnswers[q.id] || ''),
+      house.census_number || '',
+      house.head_name || '',
+      String(house.total_rooms ?? 0),
+      String(house.married_couples ?? 0),
+      house.has_car ? 'હા' : 'ના',
+      house.has_tv ? 'હા' : 'ના',
+      new Date(house.created_at).toLocaleDateString('gu-IN'),
     ].map(escapeCsvField);
   });
 
@@ -54,33 +46,19 @@ export function exportToCSV(
 // -------------------------------------------------------
 // Excel Export using xlsx
 // -------------------------------------------------------
-export async function exportToExcel(
-  houses: House[],
-  questions: Question[],
-  answers: Record<string, Record<string, string>>
-): Promise<void> {
+export async function exportToExcel(houses: House[]): Promise<void> {
   const XLSX = await import('xlsx');
 
-  const sortedQuestions = [...questions].sort((a, b) => a.question_no - b.question_no);
-
-  const statusMap: Record<string, string> = {
-    pending: 'બાકી',
-    draft: 'ડ્રાફ્ટ',
-    completed: 'પૂર્ણ',
-  };
-
   const data = houses.map((house) => {
-    const houseAnswers = answers[house.id] || {};
-    const row: Record<string, string | number> = {
-      'મકાન નંબર': house.house_no,
-      'માલિકનું નામ': house.owner_name,
-      'વિસ્તાર': house.area,
-      'સ્થિતિ': statusMap[house.status] || house.status,
+    return {
+      'જનગણના નંબર': house.census_number || '',
+      'વડા નું નામ': house.head_name || '',
+      'ટોટલ રૂમ': house.total_rooms ?? 0,
+      'પરિણિત દંપતિ ની સંખ્યા': house.married_couples ?? 0,
+      'કાર / જીપ': house.has_car ? 'હા' : 'ના',
+      'ટીવી': house.has_tv ? 'હા' : 'ના',
+      'તારીખ': new Date(house.created_at).toLocaleDateString('gu-IN'),
     };
-    sortedQuestions.forEach((q) => {
-      row[`Q${q.question_no}: ${q.question_text_gujarati}`] = houseAnswers[q.id] || '';
-    });
-    return row;
   });
 
   const worksheet = XLSX.utils.json_to_sheet(data);
@@ -89,11 +67,13 @@ export async function exportToExcel(
 
   // Column widths
   const colWidths = [
-    { wch: 12 }, // house_no
-    { wch: 25 }, // owner_name
-    { wch: 15 }, // area
-    { wch: 10 }, // status
-    ...sortedQuestions.map(() => ({ wch: 30 })),
+    { wch: 18 }, // census_number
+    { wch: 30 }, // head_name
+    { wch: 12 }, // total_rooms
+    { wch: 22 }, // married_couples
+    { wch: 12 }, // has_car
+    { wch: 10 }, // has_tv
+    { wch: 15 }, // date
   ];
   worksheet['!cols'] = colWidths;
 
@@ -101,31 +81,30 @@ export async function exportToExcel(
 }
 
 // -------------------------------------------------------
-// Completion Report CSV
+// Summary Report CSV
 // -------------------------------------------------------
 export function exportCompletionReport(houses: House[]): void {
   const total = houses.length;
-  const completed = houses.filter((h) => h.status === 'completed').length;
-  const draft = houses.filter((h) => h.status === 'draft').length;
-  const pending = houses.filter((h) => h.status === 'pending').length;
-  const percent = total > 0 ? ((completed / total) * 100).toFixed(1) : '0';
+  const filled = houses.filter((h) => h.census_number || h.head_name).length;
+  const empty = total - filled;
 
   const rows = [
-    ['અહેવાલ', 'જનગણના સર્વે - પૂર્ણતા અહેવાલ'],
+    ['અહેવાલ', 'જનગણના સર્વે - સારાંશ અહેવાલ'],
     ['તારીખ', new Date().toLocaleDateString('gu-IN')],
     [''],
-    ['કુલ મકાનો', String(total)],
-    ['પૂર્ણ', String(completed)],
-    ['ડ્રાફ્ટ', String(draft)],
-    ['બાકી', String(pending)],
-    ['પૂર્ણતા %', `${percent}%`],
+    ['કુલ સર્વે રેકોર્ડ્સ', String(total)],
+    ['ભરેલા મકાનો', String(filled)],
+    ['ખાલી રેકોર્ડ્સ', String(empty)],
     [''],
-    ['મકાન નં.', 'માલિક', 'વિસ્તાર', 'સ્થિતિ'],
+    ['જનગણના નંબર', 'વડા નું નામ', 'ટોટલ રૂમ', 'પરિણિત દંપતિ ની સંખ્યા', 'કાર / જીપ', 'ટીવી', 'તારીખ'],
     ...houses.map((h) => [
-      String(h.house_no),
-      h.owner_name,
-      h.area,
-      h.status === 'completed' ? 'પૂર્ણ' : h.status === 'draft' ? 'ડ્રાફ્ટ' : 'બાકી',
+      h.census_number || '',
+      h.head_name || '',
+      String(h.total_rooms ?? 0),
+      String(h.married_couples ?? 0),
+      h.has_car ? 'હા' : 'ના',
+      h.has_tv ? 'હા' : 'ના',
+      new Date(h.created_at).toLocaleDateString('gu-IN'),
     ]),
   ];
 

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
-import { House, Question, HouseAnswer } from '@/lib/types';
+import { House } from '@/lib/types';
 import Navbar from '@/components/Navbar';
 import SurveyForm from '@/components/SurveyForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -14,12 +14,9 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 export default function SurveyPage() {
   useAuthGuard();
   const params = useParams();
-  const router = useRouter();
   const houseId = params.id as string;
 
   const [house, setHouse] = useState<House | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<HouseAnswer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -44,24 +41,8 @@ export default function SurveyPage() {
           return;
         }
         setHouse(houseData);
-
-        const { data: questionsData, error: qErr } = await supabase
-          .from('questions')
-          .select(`*, options:question_options(id, question_id, option_label, sort_order)`)
-          .order('question_no', { ascending: true });
-
-        if (qErr) throw qErr;
-        setQuestions(questionsData || []);
-
-        const { data: answersData, error: aErr } = await supabase
-          .from('house_answers')
-          .select('*')
-          .eq('house_id', houseId);
-
-        if (aErr) throw aErr;
-        setAnswers(answersData || []);
       } catch (err) {
-        console.error('Error loading survey:', err);
+        console.error('Error loading house details:', err);
         setError('ડેટા લોડ કરવામાં ભૂલ. ફરી પ્રયાસ કરો.');
       } finally {
         setLoading(false);
@@ -71,21 +52,12 @@ export default function SurveyPage() {
     fetchData();
   }, [houseId]);
 
-  const handleStatusChange = (newStatus: 'draft' | 'completed') => {
-    if (house) {
-      setHouse({ ...house, status: newStatus });
-    }
-    if (newStatus === 'completed') {
-      setTimeout(() => router.push('/houses'), 2000);
-    }
-  };
-
   if (loading) {
     return (
       <>
         <Navbar />
         <main className="max-w-4xl mx-auto px-4 md:px-6 py-6">
-          <LoadingSpinner size="lg" message="સર્વે ફોર્મ લોડ થઈ રહ્યો છે..." />
+          <LoadingSpinner size="lg" message="ડેટા લોડ થઈ રહ્યો છે..." />
         </main>
       </>
     );
@@ -106,21 +78,36 @@ export default function SurveyPage() {
     );
   }
 
+  // If the record has been filled, render as readOnly (View Page)
+  // Otherwise, render as editable (Form Page)
+  const isFilled = !!house.census_number;
+
   return (
     <>
       <Navbar />
       <main className="max-w-4xl mx-auto px-4 md:px-6 py-4 pb-24">
-        <div className="flex items-center gap-2 text-sm text-gov-muted mb-4">
-          <Link href="/houses" className="hover:text-navy-900 transition-colors">← મકાન સૂચિ</Link>
-          <span>/</span>
-          <span className="text-navy-900 font-medium">મકાન #{house.house_no}</span>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2 text-sm text-gov-muted">
+            <Link href="/houses" className="hover:text-navy-900 transition-colors">← મકાન સૂચિ</Link>
+            <span>/</span>
+            <span className="text-navy-900 font-medium">
+              {isFilled ? `જનગણના #${house.census_number}` : 'નવો સર્વે'}
+            </span>
+          </div>
+
+          {isFilled && (
+            <Link
+              href={`/admin/house/${house.id}`}
+              className="text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              ✏️ વ્યવસ્થાપક ફેરફાર (Edit)
+            </Link>
+          )}
         </div>
 
         <SurveyForm
           house={house}
-          questions={questions}
-          initialAnswers={answers}
-          onStatusChange={handleStatusChange}
+          readOnly={isFilled}
         />
       </main>
       <OfflineIndicator />
